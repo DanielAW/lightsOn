@@ -40,6 +40,7 @@ minitube_detection=1
 # Names of programs which, when running, you wish to delay the screensaver.
 delay_progs=() # For example ('ardour2' 'gmpc')
 
+#export FULLSCREEN_ON=0
 
 # YOU SHOULD NOT NEED TO MODIFY ANYTHING BELOW THIS LINE
 
@@ -95,14 +96,21 @@ checkFullscreen()
         #fi
 
         # Check if Active Window (the foremost window) is in fullscreen state
-        isActivWinFullscreen=`DISPLAY=:0.${display} xprop -id $activ_win_id | grep _NET_WM_STATE_FULLSCREEN`
+        if [[ -n $activ_win_id ]]; then
+            isActivWinFullscreen=`DISPLAY=:0.${display} xprop -id $activ_win_id | grep _NET_WM_STATE_FULLSCREEN`
+            echo "checkFullscreen(): Display: $display isFullScreen: \"$isActivWinFullscreen\""
             if [[ "$isActivWinFullscreen" = *NET_WM_STATE_FULLSCREEN* ]];then
+                echo "checkFullscreen(): Fullscreen detected"
                 isAppRunning
                 var=$?
                 if [[ $var -eq 1 ]];then
                     delayScreensaver
                 fi
+            # If no Fullscreen active => set dpms on
+            else
+                xset dpms
             fi
+        fi
     done
 }
 
@@ -126,6 +134,7 @@ isAppRunning()
         if [[ "$activ_win_title" = *unknown* || "$activ_win_title" = *plugin-container* ]];then
         # Check if plugin-container process is running
             flash_process=`pgrep -l plugin-containe | grep -wc plugin-containe`
+            echo "isAppRunning(): finding flashProcess: $flash_process"
             #(why was I using this line avobe? delete if pgrep -lc works ok)
             #flash_process=`pgrep -lc plugin-containe`
             if [[ $flash_process -ge 1 ]];then
@@ -193,6 +202,7 @@ delayScreensaver()
 
     # reset inactivity time counter so screensaver is not started
     if [ "$screensaver" == "xscreensaver" ]; then
+        echo "delayScreensaver(): delaying xscreensaver..."
         xscreensaver-command -deactivate > /dev/null
     elif [ "$screensaver" == "kscreensaver" ]; then
         qdbus org.freedesktop.ScreenSaver /ScreenSaver SimulateUserActivity > /dev/null
@@ -202,8 +212,10 @@ delayScreensaver()
     #Check if DPMS is on. If it is, deactivate and reactivate again. If it is not, do nothing.
     dpmsStatus=`xset -q | grep -ce 'DPMS is Enabled'`
     if [ $dpmsStatus == 1 ];then
-            xset -dpms
-            xset dpms
+        echo "delayScreensaver(): delaying monitor standby..."
+        xset -dpms
+        #export FULLSCREEN_ON=1
+        #xset dpms
     fi
 
 }
@@ -230,6 +242,7 @@ fi
 
 while true
 do
+    echo "Loop started"
     checkDelayProgs
     checkFullscreen
     sleep $delay
